@@ -60,6 +60,8 @@ public class ShoppingCartController {
 
     @GetMapping("/list")
     public Result<List<ShoppingCart>> list(){
+
+
         Long currentId = BaseContext.getCurrentId();
         LambdaQueryWrapper<ShoppingCart> queryWrapper =new LambdaQueryWrapper<>();
         queryWrapper.eq(ShoppingCart::getUserId,currentId);

@@ -12,9 +12,11 @@ import dto.DishDto;
 import dto.SetmealDto;
 import org.springframework.beans.BeanUtils;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -32,12 +34,17 @@ public class SetmealController {
     private SetmealDishService setmealDishService;
     @Autowired
     private CategoryService categoryService;
+    @Autowired
+    private RedisTemplate redisTemplate;
 
 
     //新增套餐
     @PostMapping
     public Result<String> save(@RequestBody SetmealDto setmealDto) {
         setmealService.saveWithDish(setmealDto);
+        //清除指定套餐缓存数据
+        String key = "setmeal_" +setmealDto.getCategoryId()+"_"+setmealDto.getStatus();
+        redisTemplate.delete(key);
         return Result.success(null, "添加套餐成功！");
     }
 
@@ -102,16 +109,38 @@ public class SetmealController {
     public Result<String> update(@RequestBody SetmealDto setmealDto) {
 
         setmealService.updateWithDish(setmealDto);
+        //清除指定套餐缓存数据
+        String key = "setmeal_" +setmealDto.getCategoryId()+"_"+setmealDto.getStatus();
+        redisTemplate.delete(key);
+
         return Result.success(null, "套餐信息更新成功！");
     }
 
     @GetMapping("/list")
     public Result<List<Setmeal>> list(Setmeal setmeal) {
+
+        List<Setmeal> setmealList = null;
+
+        //动态构造key
+        String key = "setmeal_" + setmeal.getCategoryId() + "_" + setmeal.getStatus();
+
+        //从Redis中获取缓存数据
+        setmealList = (List<Setmeal>) redisTemplate.opsForValue().get(key);
+
+        if(setmealList !=null) {
+            //如果存在直接返回，无需查询数据库
+            return Result.success(setmealList);
+        }
+
         LambdaQueryWrapper<Setmeal> queryWrapper = new LambdaQueryWrapper<>();
         queryWrapper.eq(setmeal.getCategoryId() != null, Setmeal::getCategoryId, setmeal.getCategoryId());
         queryWrapper.eq(setmeal.getStatus() != null,Setmeal::getStatus, setmeal.getStatus());
         queryWrapper.orderByDesc(Setmeal::getUpdateTime);
-        List<Setmeal> setmealList = setmealService.list(queryWrapper);
+        setmealList = setmealService.list(queryWrapper);
+
+        //如果不存在，则需要查询数据库，将查询到的数据缓存到Redis中
+        redisTemplate.opsForValue().set(key,setmealList,30, TimeUnit.MINUTES);
+
         return Result.success(setmealList);
     }
 }
