@@ -16,7 +16,7 @@ spring:
   redis:
     host: 192.168.164.128
     port: 6379
-    password: 123456789
+    password:
     database: 0 #操作0号数据库，Redis默认有16个数据库
     jedis: # redis连接池配置
       pool:
